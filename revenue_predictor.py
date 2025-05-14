@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import Ridge
-from sklearn.neural_network import MLPRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
@@ -59,16 +58,6 @@ def revenue_predictor_page(df):
     # Initialize models
     ridge_model = Ridge(alpha=1.0)
     rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    dl_model = MLPRegressor(
-        hidden_layer_sizes=(64, 32),  # Smaller network
-        max_iter=2000,
-        random_state=42,
-        early_stopping=True,
-        validation_fraction=0.2,
-        alpha=0.01,  # Stronger regularization
-        learning_rate_init=0.0001,
-        batch_size=256  # Larger batches
-    )
 
     # Train and Evaluate Models
     if st.button("Train and Evaluate Revenue Models"):
@@ -77,33 +66,26 @@ def revenue_predictor_page(df):
                 # Train models
                 ridge_model.fit(X_train, y_train)
                 rf_model.fit(X_train, y_train)
-                dl_model.fit(X_train, y_train)
 
                 # Evaluate models
                 ridge_pred = ridge_model.predict(X_test)
                 rf_pred = rf_model.predict(X_test)
-                dl_pred = dl_model.predict(X_test)
 
                 # Calculate metrics
                 ridge_r2 = r2_score(y_test, ridge_pred)
                 ridge_mae = mean_absolute_error(np.expm1(y_test), np.expm1(ridge_pred))  # Corrected MAE
                 rf_r2 = r2_score(y_test, rf_pred)
                 rf_mae = mean_absolute_error(np.expm1(y_test), np.expm1(rf_pred))  # Corrected MAE
-                dl_r2 = r2_score(y_test, dl_pred)
-                dl_mae = mean_absolute_error(np.expm1(y_test), np.expm1(dl_pred))  # Corrected MAE
 
                 # Display metrics
                 st.subheader("Model Evaluation Metrics")
-                cols = st.columns(3)
+                cols = st.columns(2)
                 with cols[0]:
                     st.metric("Ridge R²", f"{ridge_r2:.2f}")
                     st.metric("Ridge MAE", f"${ridge_mae:,.0f}")
                 with cols[1]:
                     st.metric("Random Forest R²", f"{rf_r2:.2f}")
                     st.metric("RF MAE", f"${rf_mae:,.0f}")
-                with cols[2]:
-                    st.metric("DL R²", f"{dl_r2:.2f}")
-                    st.metric("DL MAE", f"${dl_mae:,.0f}")
 
                 # Visualize training data distribution
                 st.subheader("Training Data Revenue Distribution")
@@ -118,7 +100,6 @@ def revenue_predictor_page(df):
                 st.session_state.rev_models = {
                     'ridge': ridge_model,
                     'rf': rf_model,
-                    'dl': dl_model,
                     'scaler': scaler,
                     'genre_cols': genre_cols,
                     'num_features': num_features,
@@ -174,17 +155,10 @@ def revenue_predictor_page(df):
                 # Get predictions
                 ridge_pred = np.expm1(st.session_state.rev_models['ridge'].predict(X_input)[0])
                 rf_pred = np.expm1(st.session_state.rev_models['rf'].predict(X_input)[0])
-                dl_pred = np.expm1(st.session_state.rev_models['dl'].predict(X_input)[0])
 
                 # Clamp predictions
                 ridge_pred = np.clip(ridge_pred, st.session_state.rev_models['min_revenue'], st.session_state.rev_models['max_revenue'])
                 rf_pred = np.clip(rf_pred, st.session_state.rev_models['min_revenue'], st.session_state.rev_models['max_revenue'])
-                dl_pred = np.clip(dl_pred, st.session_state.rev_models['min_revenue'], st.session_state.rev_models['max_revenue'])
-
-                # Sanity check for DL predictions
-                if dl_pred > 2 * rf_pred:
-                    st.warning("DL prediction seems abnormally high - interpreting with caution")
-                    dl_pred = rf_pred * 1.5  # Fallback to scaled RF prediction
 
                 # Add confidence intervals for Random Forest
                 rf_preds = [tree.predict(X_input)[0] for tree in st.session_state.rev_models['rf'].estimators_]
@@ -193,14 +167,12 @@ def revenue_predictor_page(df):
 
                 # Display results
                 st.subheader("Prediction Results")
-                cols = st.columns(3)
+                cols = st.columns(2)
                 with cols[0]:
                     st.metric("Ridge Prediction", f"${ridge_pred:,.0f}")
                 with cols[1]:
                     st.metric("Random Forest", f"${rf_pred:,.0f}")
                     st.write(f"95% Confidence Interval: ${lower:,.0f} - ${upper:,.0f}")
-                with cols[2]:
-                    st.metric("DL Prediction", f"${dl_pred:,.0f}")
 
                 # ROI calculation
                 roi_ridge = (ridge_pred - budget) / budget * 100

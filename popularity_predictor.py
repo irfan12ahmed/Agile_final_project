@@ -1,10 +1,8 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import Ridge, Lasso
-from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
@@ -53,14 +51,6 @@ def popularity_predictor_page(df):
     # Initialize Models with improved parameters
     ridge_model = Ridge(alpha=1.0)
     lasso_model = Lasso(alpha=0.1)
-    dl_model = MLPRegressor(
-        hidden_layer_sizes=(128, 64, 32),
-        max_iter=2000,
-        learning_rate_init=0.001,
-        activation='relu',
-        early_stopping=True,
-        random_state=42
-    )
 
     # Train and Evaluate Models
     if st.button("Train and Evaluate Models"):
@@ -69,43 +59,30 @@ def popularity_predictor_page(df):
             ridge_model.fit(X_train_pop, y_train_pop)
             lasso_model.fit(X_train_pop, y_train_pop)
 
-            # Train DL Model with progress updates
-            dl_model.fit(X_train_pop, y_train_pop)
-
             # Evaluate Models
             ridge_preds = ridge_model.predict(X_test_pop)
             lasso_preds = lasso_model.predict(X_test_pop)
-            dl_preds = dl_model.predict(X_test_pop)
 
             # Calculate metrics
             ridge_r2 = r2_score(y_test_pop, ridge_preds)
             ridge_mae = mean_absolute_error(y_test_pop, ridge_preds)
             lasso_r2 = r2_score(y_test_pop, lasso_preds)
             lasso_mae = mean_absolute_error(y_test_pop, lasso_preds)
-            dl_r2 = r2_score(y_test_pop, dl_preds)
-            dl_mae = mean_absolute_error(y_test_pop, dl_preds)
 
             # Display Model Evaluation Metrics
             st.subheader("Model Evaluation Metrics")
-            col1, col2, col3 = st.columns(3)
-            
+            col1, col2 = st.columns(2)
             with col1:
                 st.metric("Ridge R² Score", f"{ridge_r2:.2f}")
                 st.metric("Ridge MAE", f"{ridge_mae:.2f}")
-            
             with col2:
                 st.metric("Lasso R² Score", f"{lasso_r2:.2f}")
                 st.metric("Lasso MAE", f"{lasso_mae:.2f}")
-            
-            with col3:
-                st.metric("DL R² Score", f"{dl_r2:.2f}")
-                st.metric("DL MAE", f"{dl_mae:.2f}")
 
             # Save trained models and scaler
             st.session_state.models_trained = True
             st.session_state.ridge_model = ridge_model
             st.session_state.lasso_model = lasso_model
-            st.session_state.dl_model = dl_model
             st.session_state.scaler = scaler
             st.session_state.genre_cols = [col for col in X_pop.columns if col not in ['budget', 'runtime', 'vote_average', 'release_year']]
             st.session_state.max_year = pop_df['release_year'].max()
@@ -120,10 +97,8 @@ def popularity_predictor_page(df):
                 valid_mask = ~np.isinf(np.expm1(y_test_pop)) & ~np.isnan(np.expm1(y_test_pop))
                 y_test_valid = np.expm1(y_test_pop[valid_mask])
                 ridge_preds_valid = np.expm1(ridge_preds[valid_mask])
-                dl_preds_valid = np.expm1(dl_preds[valid_mask])
                 
                 ax1.scatter(y_test_valid, ridge_preds_valid, label="Ridge", alpha=0.6)
-                ax1.scatter(y_test_valid, dl_preds_valid, label="DL", alpha=0.6)
                 
                 # Use calculated max or fallback to 1000
                 plot_max = min(st.session_state.max_popularity, 1000) if hasattr(st.session_state, 'max_popularity') else 1000
@@ -211,21 +186,16 @@ def popularity_predictor_page(df):
 
                 # Get predictions with confidence estimates
                 ridge_pred_log = st.session_state.ridge_model.predict(input_pop)[0]
-                dl_pred_log = st.session_state.dl_model.predict(input_pop)[0]
 
                 # Transform and clamp predictions
                 ridge_pred = np.clip(np.expm1(ridge_pred_log), 
                                    st.session_state.min_popularity, 
                                    st.session_state.max_popularity)
-                
-                dl_pred = np.clip(np.expm1(dl_pred_log), 
-                               st.session_state.min_popularity, 
-                               st.session_state.max_popularity)
 
                 # Display results
                 st.subheader("Prediction Results")
                 
-                col1, col2 = st.columns(2)
+                col1 = st.columns(1)[0]
                 with col1:
                     st.metric(
                         "Ridge Prediction", 
@@ -233,20 +203,11 @@ def popularity_predictor_page(df):
                         help=f"Log-space prediction: {ridge_pred_log:.2f}"
                     )
                 
-                with col2:
-                    st.metric(
-                        "DL Prediction", 
-                        f"{dl_pred:.1f}",
-                        help=f"Log-space prediction: {dl_pred_log:.2f}"
-                    )
-                
                 # Show prediction explanation
                 st.info(f"""
                 **Interpretation:**
                 - Popularity scores typically range from {st.session_state.min_popularity:.1f} to {st.session_state.max_popularity:.1f}
                 - Higher values indicate more popular movies
-                - The DL model may better capture complex patterns
-                - The Ridge model provides more conservative estimates
                 """)
 
             except Exception as e:
